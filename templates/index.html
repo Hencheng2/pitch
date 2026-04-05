@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Intensity Modifier - Selective Pitch Shifter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: #f5f5f5;
+            border-color: #764ba2;
+        }
+
+        .recording-area {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .record-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #ff4444;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+            font-size: 30px;
+        }
+
+        .record-btn.recording {
+            background: #cc0000;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .audio-player {
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .controls {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .time-inputs {
+            display: flex;
+            gap: 20px;
+        }
+
+        .time-input {
+            flex: 1;
+        }
+
+        .intensity-control {
+            text-align: center;
+        }
+
+        .intensity-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button[type="submit"]:hover {
+            transform: translateY(-2px);
+        }
+
+        .waveform-container {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 150px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .selection-info {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .success {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .time-inputs {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Audio Intensity Modifier</h1>
+        <p class="subtitle">Selectively change pitch of any part of your audio (deepen or heighten)</p>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('upload')">📁 Upload Audio</button>
+            <button class="tab" onclick="switchTab('record')">🎙️ Record Audio</button>
+        </div>
+
+        <!-- Upload Tab -->
+        <div id="upload-tab" class="tab-content active">
+            <div class="upload-area" onclick="document.getElementById('file-input').click()">
+                <p>📂 Click or drag to upload audio file</p>
+                <p style="font-size: 12px; margin-top: 10px;">Supports: MP3, WAV, OGG, M4A</p>
+                <input type="file" id="file-input" accept="audio/*" style="display: none;">
+            </div>
+            <audio id="upload-audio" controls style="width: 100%; margin-top: 20px; display: none;"></audio>
+        </div>
+
+        <!-- Record Tab -->
+        <div id="record-tab" class="tab-content">
+            <div class="recording-area">
+                <button class="record-btn" id="record-btn">🎙️</button>
+                <p id="record-status" style="margin-top: 10px; color: #666;">Click to start recording</p>
+                <audio id="recorded-audio" controls style="width: 100%; margin-top: 20px; display: none;"></audio>
+            </div>
+        </div>
+
+        <!-- Waveform Visualization -->
+        <div class="waveform-container" id="waveform-container" style="display: none;">
+            <canvas id="waveform"></canvas>
+            <div class="selection-info">
+                Click and drag on waveform to select a region
+            </div>
+        </div>
+
+        <!-- Processing Controls -->
+        <div class="controls" id="controls" style="display: none;">
+            <div class="time-inputs">
+                <div class="time-input">
+                    <label>Start Time (seconds)</label>
+                    <input type="number" id="start-time" step="0.1" value="0">
+                </div>
+                <div class="time-input">
+                    <label>End Time (seconds)</label>
+                    <input type="number" id="end-time" step="0.1" value="0">
+                </div>
+            </div>
+
+            <div class="control-group intensity-control">
+                <label>Intensity (Pitch Shift)</label>
+                <input type="range" id="intensity" min="-12" max="12" step="0.5" value="-5">
+                <div>
+                    <span class="intensity-value" id="intensity-value">-5</span> semitones
+                    <span id="intensity-label">(Deeper Voice)</span>
+                </div>
+            </div>
+
+            <button id="process-btn">✨ Process Selected Portion ✨</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing audio...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+    </div>
+
+    <script>
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let currentAudioBlob = null;
+        let currentAudioUrl = null;
+        let audioContext = null;
+        let audioBuffer = null;
+        let currentTab = 'upload';
+        let waveformCanvas = null;
+        let selectionStart = 0;
+        let selectionEnd = 0;
+        let isSelecting = false;
+
+        // Switch tabs
+        window.switchTab = function(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'upload') {
+                document.querySelector('.tab').classList.add('active');
+                document.getElementById('upload-tab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('record-tab').classList.add('active');
+            }
+        }
+
+        // File upload handling
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                currentAudioBlob = file;
+                const url = URL.createObjectURL(file);
+                const audio = document.getElementById('upload-audio');
+                audio.src = url;
+                audio.style.display = 'block';
+                await loadAudioForProcessing(url);
+                document.getElementById('waveform-container').style.display = 'block';
+                document.getElementById('controls').style.display = 'block';
+            }
+        });
+
+        // Recording handling
+        const recordBtn = document.getElementById('record-btn');
+        const recordStatus = document.getElementById('record-status');
+        
+        recordBtn.addEventListener('click', async () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recordBtn.classList.remove('recording');
+                recordStatus.textContent = 'Recording stopped';
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const url = URL.createObjectURL(currentAudioBlob);
+                        const audio = document.getElementById('recorded-audio');
+                        audio.src = url;
+                        audio.style.display = 'block';
+                        await loadAudioForProcessing(url);
+                        document.getElementById('waveform-container').style.display = 'block';
+                        document.getElementById('controls').style.display = 'block';
+                        recordStatus.textContent = 'Recording saved!';
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    mediaRecorder.start();
+                    recordBtn.classList.add('recording');
+                    recordStatus.textContent = 'Recording... Click to stop';
+                } catch (error) {
+                    console.error('Error accessing microphone:', error);
+                    recordStatus.textContent = 'Error accessing microphone';
+                }
+            }
+        });
+
+        // Load audio for waveform and processing
+        async function loadAudioForProcessing(url) {
+            if (audioContext) {
+                await audioContext.close();
+            }
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            drawWaveform();
+            
+            // Set initial time range
+            document.getElementById('start-time').value = 0;
+            document.getElementById('end-time').value = audioBuffer.duration;
+            selectionStart = 0;
+            selectionEnd = audioBuffer.duration;
+        }
+
+        // Draw waveform
+        function drawWaveform() {
+            if (!audioBuffer) return;
+            
+            waveformCanvas = document.getElementById('waveform');
+            const canvas = waveformCanvas;
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / canvas.width);
+            const amp = canvas.height / 2;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.beginPath();
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            
+            for (let i = 0; i < canvas.width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                for (let j = 0; j < step; j++) {
+                    const datum = data[(i * step) + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                const y1 = (1 + min) * amp;
+                const y2 = (1 + max) * amp;
+                ctx.moveTo(i, y1);
+                ctx.lineTo(i, y2);
+            }
+            ctx.stroke();
+            
+            // Draw selection overlay
+            const startX = (selectionStart / audioBuffer.duration) * canvas.width;
+            const endX = (selectionEnd / audioBuffer.duration) * canvas.width;
+            
+            ctx.fillStyle = 'rgba(102, 126, 234, 0.3)';
+            ctx.fillRect(startX, 0, endX - startX, canvas.height);
+            
+            // Draw selection borders
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX, 0, endX - startX, canvas.height);
+            
+            // Add mouse interaction
+            setupWaveformInteraction(canvas);
+        }
+        
+        function setupWaveformInteraction(canvas) {
+            let startX = 0;
+            
+            canvas.addEventListener('mousedown', (e) => {
+                isSelecting = true;
+                const rect = canvas.getBoundingClientRect();
+                startX = (e.clientX - rect.left) / canvas.width;
+                selectionStart = startX * audioBuffer.duration;
+                selectionEnd = selectionStart;
+                updateTimeInputs();
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (isSelecting) {
+                    const rect = canvas.getBoundingClientRect();
+                    let currentX = (e.clientX - rect.left) / canvas.width;
+                    currentX = Math.min(1, Math.max(0, currentX));
+                    selectionEnd = currentX * audioBuffer.duration;
+                    
+                    if (selectionEnd < selectionStart) {
+                        [selectionStart, selectionEnd] = [selectionEnd, selectionStart];
+                    }
+                    
+                    updateTimeInputs();
+                    drawWaveform();
+                }
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isSelecting = false;
+            });
+        }
+        
+        function updateTimeInputs() {
+            document.getElementById('start-time').value = selectionStart.toFixed(2);
+            document.getElementById('end-time').value = selectionEnd.toFixed(2);
+        }
+        
+        // Update intensity display
+        const intensitySlider = document.getElementById('intensity');
+        const intensityValue = document.getElementById('intensity-value');
+        const intensityLabel = document.getElementById('intensity-label');
+        
+        intensitySlider.addEventListener('input', () => {
+            const value = parseFloat(intensitySlider.value);
+            intensityValue.textContent = value;
+            if (value < 0) {
+                intensityLabel.textContent = '(Deeper Voice)';
+            } else if (value > 0) {
+                intensityLabel.textContent = '(Higher Voice)';
+            } else {
+                intensityLabel.textContent = '(Original Pitch)';
+            }
+        });
+        
+        // Process audio
+        document.getElementById('process-btn').addEventListener('click', async () => {
+            const startTime = parseFloat(document.getElementById('start-time').value);
+            const endTime = parseFloat(document.getElementById('end-time').value);
+            const intensity = parseFloat(intensitySlider.value);
+            
+            if (startTime >= endTime) {
+                showError('Start time must be less than end time');
+                return;
+            }
+            
+            showLoading(true);
+            
+            const formData = new FormData();
+            if (currentTab === 'upload') {
+                const file = document.getElementById('file-input').files[0];
+                formData.append('audio', file);
+            } else {
+                // Convert blob to file
+                formData.append('audio', currentAudioBlob, 'recording.webm');
+            }
+            
+            formData.append('start_time', startTime);
+            formData.append('end_time', endTime);
+            formData.append('intensity', intensity);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'processed_audio.wav';
+                    a.click();
+                    showSuccess('Audio processed and downloaded successfully!');
+                } else {
+                    const error = await response.json();
+                    showError(error.error || 'Processing failed');
+                }
+            } catch (error) {
+                showError('Error processing audio: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        });
+        
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            document.getElementById('process-btn').disabled = show;
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
